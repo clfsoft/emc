@@ -26,5 +26,5 @@ changelog:
       - "Merge branch"
 release:
   github:
-    owner: wreulicke
+    owner: clfsoft
     name: emc
