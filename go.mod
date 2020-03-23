@@ -1,4 +1,4 @@
-module github.com/wreulicke/emc
+module github.com/clfsoft/emc
 
 go 1.13
 

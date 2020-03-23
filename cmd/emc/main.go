@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/alecthomas/units"
-	"github.com/wreulicke/emc"
+	"github.com/clfsoft/emc"
 	"gopkg.in/alecthomas/kingpin.v2"
 )
 
@@ -39,7 +39,7 @@ func main() {
 	javaOpts := app.Flag("java-options", "JVM Options").Envar("JAVA_OPTS").Default("").String()
 	headRoom := app.Flag("head-room", "Percentage of total memory available which will be left unallocated to cover JVM overhead").Default("0").Int()
 	findLambda := app.Flag("find-lambda", "find lambda").Default("false").Hidden().Bool() // experimental
-	javaVersion := app.Flag("java-version", "Java version").Default("11").Int()
+	javaVersion := app.Flag("java-version", "Java version").Default("8").Int()
 	jarOrDirectory := app.Arg("jarOrDirectory", "jar or directory").File()
 	app.Action(func(c *kingpin.ParseContext) error {
 		if *jarOrDirectory == nil && *loadedClassCount == 0 {
@@ -48,6 +48,24 @@ func main() {
 		if *jarOrDirectory != nil && *loadedClassCount > 0 {
 			return fmt.Errorf("please specify either jarOrDirectory or loaded-class-count")
 		}
+		
+		if j := *jarOrDirectory; j != nil && int64(*totalMemory) == 0 {
+			log.SetOutput(ioutil.Discard)
+			fi, err := j.Stat()
+			if err != nil {
+				return err
+			}
+			actualClassCount, err := emc.CountClassFile(j, fi, *findLambda)
+			if err != nil {
+				return err
+			}
+			stdLibClassCount := emc.CountClassInStandardLibrary(*javaVersion)
+			*loadedClassCount = int64(0.35 * float64(actualClassCount+stdLibClassCount))
+			
+			fmt.Println(*loadedClassCount)
+			return nil
+		}
+		
 		if int64(*totalMemory) == 0 {
 			t, err := getMemory()
 			if err != nil {
@@ -72,7 +90,9 @@ func main() {
 			}
 			stdLibClassCount := emc.CountClassInStandardLibrary(*javaVersion)
 			*loadedClassCount = int64(0.35 * float64(actualClassCount+stdLibClassCount))
+			
 		}
+		
 		r, err := emc.Calculate(int64(*totalMemory), *loadedClassCount, *threadCount, *javaOpts, *headRoom)
 		if err != nil {
 			return fmt.Errorf("cannot calculate memory options. err=%v", err)
